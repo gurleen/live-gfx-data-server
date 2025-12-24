@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Object Store Test Page</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    .panel {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      margin-top: 0;
+    }
+    h2 {
+      margin-top: 0;
+      font-size: 1.2em;
+      border-bottom: 2px solid #007bff;
+      padding-bottom: 10px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+      font-family: monospace;
+    }
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    button.secondary {
+      background: #6c757d;
+    }
+    button.secondary:hover {
+      background: #545b62;
+    }
+    button.danger {
+      background: #dc3545;
+    }
+    button.danger:hover {
+      background: #c82333;
+    }
+    .status {
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      font-weight: 500;
+    }
+    .status.connected {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status.disconnected {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .log {
+      background: #f8f9fa;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      height: 400px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .log-entry {
+      margin-bottom: 8px;
+      padding: 4px;
+      border-left: 3px solid #007bff;
+      padding-left: 8px;
+    }
+    .log-entry.received {
+      border-left-color: #28a745;
+      background: #f1f9f3;
+    }
+    .log-entry.sent {
+      border-left-color: #007bff;
+      background: #f1f7ff;
+    }
+    .log-entry.error {
+      border-left-color: #dc3545;
+      background: #fff5f5;
+    }
+  </style>
+</head>
+<body>
+  <h1>Object Store Test Page</h1>
+
+  <div class="container">
+    <div class="panel">
+      <h2>WebSocket</h2>
+      <div id="ws-status" class="status disconnected">Disconnected</div>
+
+      <div class="form-group">
+        <button id="ws-connect">Connect WebSocket</button>
+        <button id="ws-disconnect" class="danger">Disconnect</button>
+      </div>
+
+      <div class="form-group">
+        <label>Key to Subscribe/Unsubscribe:</label>
+        <input type="text" id="ws-key" placeholder="my-key" value="test-key">
+        <button id="ws-subscribe" style="margin-top: 5px;">Subscribe</button>
+        <button id="ws-unsubscribe" class="secondary" style="margin-top: 5px;">Unsubscribe</button>
+      </div>
+
+      <div class="form-group">
+        <label>Set Key:</label>
+        <input type="text" id="ws-set-key" placeholder="my-key" value="test-key">
+        <label style="margin-top: 10px;">Value (JSON):</label>
+        <textarea id="ws-set-value" placeholder='{"foo": "bar"}'>{"message": "Hello from WebSocket"}</textarea>
+        <button id="ws-set" style="margin-top: 5px;">Set Value</button>
+      </div>
+
+      <div class="form-group">
+        <label>Get Key:</label>
+        <input type="text" id="ws-get-key" placeholder="my-key" value="test-key">
+        <button id="ws-get" style="margin-top: 5px;">Get Value</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>HTTP API</h2>
+
+      <div class="form-group">
+        <label>GET /get/{key}:</label>
+        <input type="text" id="http-get-key" placeholder="my-key" value="test-key">
+        <button id="http-get" style="margin-top: 5px;">HTTP GET</button>
+      </div>
+
+      <div class="form-group">
+        <label>POST /set - Key:</label>
+        <input type="text" id="http-set-key" placeholder="my-key" value="test-key">
+        <label style="margin-top: 10px;">Value (JSON):</label>
+        <textarea id="http-set-value" placeholder='{"foo": "bar"}'>{"message": "Hello from HTTP"}</textarea>
+        <button id="http-set" style="margin-top: 5px;">HTTP POST</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Activity Log</h2>
+    <button id="clear-log" class="secondary">Clear Log</button>
+    <div id="log" class="log"></div>
+  </div>
+
+  <script>
+    let ws = null;
+
+    function log(message, type = 'sent') {
+      const logDiv = document.getElementById('log');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      const timestamp = new Date().toLocaleTimeString();
+      entry.textContent = `[${timestamp}] ${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function updateStatus(connected) {
+      const status = document.getElementById('ws-status');
+      if (connected) {
+        status.textContent = 'Connected';
+        status.className = 'status connected';
+      } else {
+        status.textContent = 'Disconnected';
+        status.className = 'status disconnected';
+      }
+    }
+
+    document.getElementById('ws-connect').addEventListener('click', () => {
+      if (ws) {
+        log('Already connected', 'error');
+        return;
+      }
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        log('WebSocket connected', 'received');
+        updateStatus(true);
+      };
+
+      ws.onmessage = (event) => {
+        log(`Received: ${event.data}`, 'received');
+      };
+
+      ws.onerror = (error) => {
+        log(`WebSocket error: ${error}`, 'error');
+      };
+
+      ws.onclose = () => {
+        log('WebSocket disconnected', 'received');
+        updateStatus(false);
+        ws = null;
+      };
+    });
+
+    document.getElementById('ws-disconnect').addEventListener('click', () => {
+      if (!ws) {
+        log('Not connected', 'error');
+        return;
+      }
+      ws.close();
+    });
+
+    document.getElementById('ws-subscribe').addEventListener('click', () => {
+      if (!ws) {
+        log('Not connected', 'error');
+        return;
+      }
+      const key = document.getElementById('ws-key').value;
+      const message = JSON.stringify({ action: 'subscribe', key });
+      ws.send(message);
+      log(`Sent: ${message}`, 'sent');
+    });
+
+    document.getElementById('ws-unsubscribe').addEventListener('click', () => {
+      if (!ws) {
+        log('Not connected', 'error');
+        return;
+      }
+      const key = document.getElementById('ws-key').value;
+      const message = JSON.stringify({ action: 'unsubscribe', key });
+      ws.send(message);
+      log(`Sent: ${message}`, 'sent');
+    });
+
+    document.getElementById('ws-set').addEventListener('click', () => {
+      if (!ws) {
+        log('Not connected', 'error');
+        return;
+      }
+      const key = document.getElementById('ws-set-key').value;
+      try {
+        const value = JSON.parse(document.getElementById('ws-set-value').value);
+        const message = JSON.stringify({ action: 'set', key, value });
+        ws.send(message);
+        log(`Sent: ${message}`, 'sent');
+      } catch (e) {
+        log(`Invalid JSON: ${e.message}`, 'error');
+      }
+    });
+
+    document.getElementById('ws-get').addEventListener('click', () => {
+      if (!ws) {
+        log('Not connected', 'error');
+        return;
+      }
+      const key = document.getElementById('ws-get-key').value;
+      const message = JSON.stringify({ action: 'get', key });
+      ws.send(message);
+      log(`Sent: ${message}`, 'sent');
+    });
+
+    document.getElementById('http-get').addEventListener('click', async () => {
+      const key = document.getElementById('http-get-key').value;
+      try {
+        const response = await fetch(`/get/${key}`);
+        const data = await response.json();
+        log(`HTTP GET /get/${key} - Response: ${JSON.stringify(data)}`, 'received');
+      } catch (e) {
+        log(`HTTP GET error: ${e.message}`, 'error');
+      }
+    });
+
+    document.getElementById('http-set').addEventListener('click', async () => {
+      const key = document.getElementById('http-set-key').value;
+      try {
+        const value = JSON.parse(document.getElementById('http-set-value').value);
+        const response = await fetch('/set', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, value })
+        });
+        const data = await response.json();
+        log(`HTTP POST /set - Response: ${JSON.stringify(data)}`, 'received');
+      } catch (e) {
+        log(`HTTP POST error: ${e.message}`, 'error');
+      }
+    });
+
+    document.getElementById('clear-log').addEventListener('click', () => {
+      document.getElementById('log').innerHTML = '';
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "live-gfx-data-server",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "bun run build:windows && bun run build:macos-intel && bun run build:macos-arm && bun run build:linux",
+    "build:windows": "bun build --compile --target=bun-windows-x64 --outfile dist/live-gfx-data-server-windows.exe index.ts",
+    "build:macos-intel": "bun build --compile --target=bun-darwin-x64 --outfile dist/live-gfx-data-server-macos-intel index.ts",
+    "build:macos-arm": "bun build --compile --target=bun-darwin-arm64 --outfile dist/live-gfx-data-server-macos-arm index.ts",
+    "build:linux": "bun build --compile --target=bun-linux-x64 --outfile dist/live-gfx-data-server-linux index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
