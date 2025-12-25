@@ -1,8 +1,6 @@
 import { mkdir, exists } from "node:fs/promises";
 import { join } from "node:path";
-
-// Embed test.html at build time
-const testHtmlContent = await Bun.file("./test.html").text();
+import html from "./test.html" with { type: "text" };
 
 // Configuration
 const CACHE_DIR = process.env.CACHE_DIR || ".cache";
@@ -61,12 +59,12 @@ log("=== STARTING LIVE-GFX-DATA-SERVER ===");
 await initializeStore();
 
 const server = Bun.serve({
-  fetch(req, server) {
+  async fetch(req, server) {
     const url = new URL(req.url);
 
     // Test page endpoint
     if (url.pathname === "/test") {
-      return new Response(testHtmlContent, {
+      return new Response(html.toString(), {
         headers: { "Content-Type": "text/html" },
       });
     }
